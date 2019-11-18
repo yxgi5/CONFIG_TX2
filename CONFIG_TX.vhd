@@ -33,7 +33,8 @@ entity CONFIG_TX is
   generic (
     CLOCK_PERIOD_PS:            integer:=10000;                                 -- system clock period
     BIT_PERIOD_NS:              integer:=10000;                                 -- data rate
-    C_NO_CFG_BITS:              integer:=24);                                   -- serial bits
+    C_NO_CFG_BITS:              integer:=24;                                    -- serial bits
+    CFG_REGS:                   integer:=2);                                    -- don't change
   port (
     RESET:                      in  std_logic;                                  -- async. reset
     CLOCK:                      in  std_logic;                                  -- system clock
@@ -68,20 +69,17 @@ signal I_START_1:               std_logic;
 signal I_START_2:               std_logic;
 signal I_START_3:               std_logic;
 signal I_START_P:               std_logic;
-signal I_TX_START_P:            std_logic;
-signal I_TX_START:              std_logic;
-signal I_START_P_SCK:           std_logic;
-signal I_START_P_SCK_1:         std_logic;
-signal I_START_P_SCK_CNT:       std_logic_vector(1 downto 0);
 signal I_ENABLE:                std_logic;
 signal I_PULSE:                 std_logic;
 signal I_PULSE_1:               std_logic;
-signal I_SHIFT_EN:               std_logic;
+--signal I_PULSE_2:               std_logic;
 --signal I_PULSE_3:               std_logic;
 signal I_PULSE_P:               std_logic;
 signal I_PULSE_N:               std_logic;
 signal I_BIT_CNT:               T_BIT_CNT;
 signal I_SREG:                  std_logic_vector(C_NO_CFG_BITS-1 downto 0);
+signal I_REG_CNT:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
+signal I_REG_CNT_PRE:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
 --signal I_TX_CLK:                std_logic;
 signal I_TX_OE:                 std_logic;
 signal I_TX_OE_1:               std_logic;
@@ -144,65 +142,32 @@ end process I_PULSE_SYNC;
 I_PULSE_P <= I_PULSE and not I_PULSE_1;
 I_PULSE_N <= not I_PULSE and I_PULSE_1;
 
---------------------------------------------
-ENABLE_EVAL_PREPARE: process(RESET,CLOCK)
-begin
-  if (RESET = '1') then
-    I_ENABLE <= '0';
-    I_TX_START <= '0';
-    I_START_P_SCK <= '0';
-    I_START_P_SCK_1 <= '0';
-    I_START_P_SCK_CNT <= (others => '0');
-    I_SHIFT_EN <= '0';
-  else
-    if (rising_edge(CLOCK)) then
-        I_START_P_SCK_1 <= I_START_P_SCK;
-        if ((I_PULSE_P = '1') and (I_START_P_SCK = '1')) then
-            if (I_START_P_SCK_CNT = 2) then
-                I_START_P_SCK_CNT <= (others => '0');
-                I_START_P_SCK <= '0';
-                I_TX_START <= '1';
-            elsif (I_PULSE_P = '1') then
-                I_START_P_SCK_CNT <= I_START_P_SCK_CNT + 1;
-            end if;
-        elsif (I_START_P) then
-            I_START_P_SCK <= '1';
-            I_ENABLE <= '1';
-        elsif ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
-            I_ENABLE <= '0';
-            I_TX_START <= '0';
-            I_SHIFT_EN <= '0';
-        else
-          if ((I_TX_START = '1') and (I_PULSE_P = '1')) then
-            I_SHIFT_EN <= '1';
-          end if;
-          I_ENABLE <= I_ENABLE;
-        end if;
-     end if;
-  end if;
-end process ENABLE_EVAL_PREPARE;
-I_TX_START_P <= not I_START_P_SCK and I_START_P_SCK_1;
-
-
-
 --------------------------------------------------------------------------------
 -- Activate I_ENABLE after receiving a start-pulse
 --------------------------------------------------------------------------------
---ENABLE_EVAL: process(RESET,CLOCK)
---begin
---  if (RESET = '1') then
---    I_ENABLE <= '0';
---  elsif (rising_edge(CLOCK)) then
+ENABLE_EVAL: process(RESET,CLOCK)
+begin
+  if (RESET = '1') then
+    I_ENABLE <= '0';
+    I_REG_CNT <= (others => '0');
+    I_REG_CNT_PRE <= (others => '0');
+  elsif (rising_edge(CLOCK)) then
     -- if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_TX_CLK = '1') and (I_PULSE = '1')) then
---    if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
---      I_ENABLE <= '0';
---    elsif (I_START_P = '1') then
---      I_ENABLE <= '1';
---    else
---      I_ENABLE <= I_ENABLE;
---    end if;
---  end if;
---end process ENABLE_EVAL;
+    if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
+      if (I_REG_CNT = CFG_REGS-1) then
+        I_ENABLE <= '0';
+        I_REG_CNT <= (others => '0');
+      else
+        I_REG_CNT <= I_REG_CNT + 1;
+      end if;
+    elsif (I_START_P = '1') then
+      I_ENABLE <= '1';
+    else
+      I_ENABLE <= I_ENABLE;
+    end if;
+    I_REG_CNT_PRE <= I_REG_CNT;
+  end if;
+end process ENABLE_EVAL;
 
 
 --------------------------------------------------------------------------------
@@ -216,9 +181,17 @@ begin
     if (I_TX_OE = '1') then
       -- if ((I_TX_CLK = '1') and (I_PULSE = '1')) then
       if (I_PULSE_P = '1') then
-        I_BIT_CNT <= I_BIT_CNT + 1;
+        if ((I_REG_CNT = CFG_REGS-1) and (I_BIT_CNT = C_NO_CFG_BITS-1)) then 
+            I_BIT_CNT <= 0;
+        else
+            I_BIT_CNT <= I_BIT_CNT + 1;
+        end if;
       else
-        I_BIT_CNT <= I_BIT_CNT;
+        if (I_REG_CNT_PRE /= I_REG_CNT) then
+            I_BIT_CNT <= 0;
+        else
+            I_BIT_CNT <= I_BIT_CNT;
+        end if;
       end if;
     else
       I_BIT_CNT <= 0;
@@ -243,7 +216,7 @@ begin
       end if;
     else
       -- if ((I_PULSE = '1') and (I_TX_CLK = '1')) then
-      if ((I_SHIFT_EN = '1') and (I_PULSE_N = '1')) then
+      if (I_PULSE_N = '1') then
         I_SREG(C_NO_CFG_BITS-1 downto 1) <= I_SREG(C_NO_CFG_BITS-2 downto 0);
         I_SREG(0) <= '0';
       else
@@ -286,10 +259,10 @@ begin
   elsif (rising_edge(CLOCK)) then
     I_TX_OE_1 <= I_TX_OE;
     -- if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_TX_CLK = '1') and (I_PULSE = '1')) then
-    if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
+    if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1') and (I_REG_CNT = CFG_REGS-1)) then
       I_TX_OE <= '0';
     -- elsif ((I_ENABLE = '1') and (I_PULSE = '1')) then
-    elsif ((I_TX_START = '1') and (I_PULSE_P = '1')) then
+    elsif ((I_ENABLE = '1') and (I_PULSE_P = '1')) then
       I_TX_OE <= '1';
     else
       I_TX_OE <= I_TX_OE;
@@ -357,7 +330,7 @@ begin
   if (RESET = '1') then
     I_SET_TX_CLK   <= '0';
   elsif (rising_edge(CLOCK)) then
-    if (I_TX_START_P = '1') then
+    if (I_START_P = '1') then
       I_SET_TX_CLK <= '0';
     elsif (I_CFG_PERIOD_CNT = I_CFG_PERIOD_END-x"10") then
       I_SET_TX_CLK <= '1';
