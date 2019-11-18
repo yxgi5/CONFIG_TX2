@@ -60,7 +60,7 @@ end
 always
 begin
     #1000000 START_tb = 1;
-    #10000000 START_tb = 0;
+    #50000000 START_tb = 0;
 end
 
 endmodule
