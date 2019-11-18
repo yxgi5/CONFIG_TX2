@@ -81,6 +81,7 @@ signal I_SREG:                  std_logic_vector(C_NO_CFG_BITS-1 downto 0);
 signal I_REG_CNT:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
 signal I_REG_CNT_PRE:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
 --signal I_TX_CLK:                std_logic;
+signal I_REG_CNT_ADD_F:          std_logic;
 signal I_TX_OE:                 std_logic;
 signal I_TX_OE_1:               std_logic;
 signal I_CFG_PERIOD:            std_logic;
@@ -151,6 +152,7 @@ begin
     I_ENABLE <= '0';
     I_REG_CNT <= (others => '0');
     I_REG_CNT_PRE <= (others => '0');
+    I_REG_CNT_ADD_F <= '0';
   elsif (rising_edge(CLOCK)) then
     -- if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_TX_CLK = '1') and (I_PULSE = '1')) then
     if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
@@ -159,11 +161,16 @@ begin
         I_REG_CNT <= (others => '0');
       else
         I_REG_CNT <= I_REG_CNT + 1;
+        I_REG_CNT_ADD_F <= '1';
       end if;
     elsif (I_START_P = '1') then
       I_ENABLE <= '1';
     else
       I_ENABLE <= I_ENABLE;
+    end if;
+    
+    if ((I_REG_CNT_ADD_F = '1') and (I_PULSE_N = '1')) then
+        I_REG_CNT_ADD_F <= '0';
     end if;
     I_REG_CNT_PRE <= I_REG_CNT;
   end if;
@@ -184,7 +191,11 @@ begin
         if ((I_REG_CNT = CFG_REGS-1) and (I_BIT_CNT = C_NO_CFG_BITS-1)) then 
             I_BIT_CNT <= 0;
         else
-            I_BIT_CNT <= I_BIT_CNT + 1;
+            if (I_REG_CNT_ADD_F = '1') then
+              I_BIT_CNT <= 0;
+            else
+              I_BIT_CNT <= I_BIT_CNT + 1;
+            end if;
         end if;
       else
         if (I_REG_CNT_PRE /= I_REG_CNT) then
@@ -263,7 +274,11 @@ begin
       I_TX_OE <= '0';
     -- elsif ((I_ENABLE = '1') and (I_PULSE = '1')) then
     elsif ((I_ENABLE = '1') and (I_PULSE_P = '1')) then
-      I_TX_OE <= '1';
+      if (I_REG_CNT_ADD_F = '0') then
+        I_TX_OE <= '1';
+      else
+        I_TX_OE <= '0';
+      end if;
     else
       I_TX_OE <= I_TX_OE;
     end if;
