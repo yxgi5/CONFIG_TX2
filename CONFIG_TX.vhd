@@ -34,7 +34,9 @@ entity CONFIG_TX is
     CLOCK_PERIOD_PS:            integer:=10000;                                 -- system clock period
     BIT_PERIOD_NS:              integer:=10000;                                 -- data rate
     C_NO_CFG_BITS:              integer:=24;                                    -- serial bits
-    CFG_REGS:                   integer:=2);                                    -- don't change
+    --C_REG_CFG_BITS:             integer:=3;                                   -- don't change, 3 bit config reg address
+    CFG_REGS:                   integer:=2);                                    -- don't change, naneye-m has 2 regs, each reg has 16 bit
+
   port (
     RESET:                      in  std_logic;                                  -- async. reset
     CLOCK:                      in  std_logic;                                  -- system clock
@@ -52,7 +54,8 @@ architecture RTL of CONFIG_TX is
 
 subtype T_BIT_CNT is            integer range 0 to C_NO_CFG_BITS;
 --constant C_CLK_DIV:             integer:=((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS));
-constant C_CLK_DIV:             integer:=((((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS))+1)/2)*2;
+constant C_CLK_DIV:             integer:=((((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS))+1)/2)*2; -- 确保是偶数分频
+constant C_UPDATE_CODE:         std_logic_vector(3 downto 0):="1001";
 
 component CLK_DIV is
    generic (
@@ -63,7 +66,6 @@ component CLK_DIV is
       ENABLE:                   in  std_logic;
       PULSE:                    out std_logic);
 end component CLK_DIV;
-
 
 signal I_START_1:               std_logic;
 signal I_START_2:               std_logic;
@@ -84,8 +86,8 @@ signal I_PULSE_P:               std_logic;
 signal I_PULSE_N:               std_logic;
 signal I_BIT_CNT:               T_BIT_CNT;
 signal I_SREG:                  std_logic_vector(C_NO_CFG_BITS-1 downto 0);
-signal I_REG_CNT:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
-signal I_REG_CNT_PRE:               std_logic_vector(1 downto 0);       --  range must bigger than CFG_REGS
+signal I_REG_CNT:               std_logic_vector(2 downto 0);       --  range must bigger than CFG_REGS
+signal I_REG_CNT_PRE:           std_logic_vector(2 downto 0);       --  range must bigger than CFG_REGS
 --signal I_TX_CLK:                std_logic;
 signal I_REG_CNT_ADD_F:          std_logic;
 signal I_TX_OE:                 std_logic;
@@ -95,6 +97,9 @@ signal I_CFG_PERIOD_1:          std_logic;
 signal I_CFG_PERIOD_CNT:        std_logic_vector(16 downto 0);
 signal I_CFG_PERIOD_END:        std_logic_vector(16 downto 0);
 signal I_SET_TX_CLK:            std_logic;
+signal I_RD_ADDR:               std_logic_vector(2 downto 0);       --  range must bigger than CFG_REGS
+--signal I_UPDATE_CODE:           std_logic_vector(3 downto 0);
+signal I_RD_EN:                 std_logic;
 
 
 begin
@@ -284,6 +289,39 @@ begin
 end process SREG_EVAL;
 
 
+READ_WORDS: process(RESET,CLOCK)
+begin
+  if (RESET = '1') then
+    I_RD_EN <= '0';
+    I_RD_ADDR <= (others => '0');
+  elsif (rising_edge(CLOCK)) then
+    if (I_ENABLE = '0') then
+        if (I_START_P = '1') then
+            I_RD_EN <= '1';
+            I_RD_ADDR <= (others => '0');
+        else
+            I_RD_EN <= '0';
+        end if;
+    else -- I_ENABLE = '1')
+        --if ((I_REG_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1') and (I_REG_CNT < CFG_REGS-1)) then
+        if ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
+            
+            --I_RD_ADDR <= '0' & I_REG_CNT + "001";
+            if(I_REG_CNT = CFG_REGS-1) then
+                I_RD_ADDR <= (others => '0');
+            else
+                I_RD_EN <= '1';
+                I_RD_ADDR <= I_REG_CNT + "001";
+            end if;
+        else
+            I_RD_EN <= '0';
+            if(I_REG_CNT = C_NO_CFG_BITS-1) then
+                I_RD_ADDR <= (others => '0');
+            end if;
+        end if;
+    end if;
+  end if;
+end process READ_WORDS;
 --------------------------------------------------------------------------------
 -- TX clock generation
 --------------------------------------------------------------------------------
