@@ -23,6 +23,10 @@ wire                            TX_CLK_tb;
 wire                            TX_OE_N_tb;
 wire                            TX_OE_tb;
 
+wire    [15:0]                  pdata;
+wire    [2:0]                   paddr;
+wire                            rd_en;
+
 CONFIG_TX
 #(
     .CLOCK_PERIOD_PS            (20833),    // 48MHz
@@ -34,12 +38,30 @@ CONFIG_TX
     .CLOCK                      (UCLOCK_tb),
     .START                      (START_tb),
     .LINE_PERIOD                (16'd4000),
-    .INPUT                      (24'b1010_1110_1100_1001_1110_1100),
+    .INPUT                      (pdata),
+    .RD_ADDR                    (paddr),
+    .RD_EN                      (rd_en),
     .TX_END                     (CONFIG_DONE_tb),
     .TX_DAT                     (TX_DAT_tb),
     .TX_CLK                     (TX_CLK_tb),
     .TX_OE                      (TX_OE_tb)
 );
+
+
+CONV_REGS UUT10
+(
+    .CLOCK                      (UCLOCK_tb),                                      // 48MHz system clock
+    .RESET                      (RESET_tb),                                      // reset active high
+
+    .WE_A                       (1'b0),                                        //
+    .ADD_A                      (3'b000),                                      // 
+    .DAT_A                      (8'h00),                                      //
+
+    .RE_B                       (rd_en),
+    .ADD_B                      (paddr[1:0]),                                      // 
+    .DAT_B                      (pdata)                                       //
+);
+
 
 assign      TX_OE_N_tb  =       ~TX_OE_tb;
 

@@ -42,7 +42,10 @@ entity CONFIG_TX is
     CLOCK:                      in  std_logic;                                  -- system clock
     START:                      in  std_logic;                                  -- start of transmission (async. pulse)
     LINE_PERIOD:                in  std_logic_vector(15 downto 0);              -- line period in # of CLOCK cycles
-    INPUT:                      in  std_logic_vector(C_NO_CFG_BITS-1 downto 0); -- parallel tx data
+    --INPUT:                      in  std_logic_vector(C_NO_CFG_BITS-1 downto 0); -- parallel tx data
+    INPUT:                      in  std_logic_vector(15 downto 0);              -- parallel tx reg data
+    RD_ADDR:                    out std_logic_vector(2 downto 0);               -- parallel tx read addr
+    RD_EN:                      out std_logic;                                  -- parallel tx read enable
     TX_END:                     out std_logic;                                  -- signals end of transmission (pulse)
     TX_DAT:                     out std_logic;                                  -- serial tx data => sensor
     TX_CLK:                     out std_logic;                                  -- shift clock => sensor
@@ -97,10 +100,10 @@ signal I_CFG_PERIOD_1:          std_logic;
 signal I_CFG_PERIOD_CNT:        std_logic_vector(16 downto 0);
 signal I_CFG_PERIOD_END:        std_logic_vector(16 downto 0);
 signal I_SET_TX_CLK:            std_logic;
-signal I_RD_ADDR:               std_logic_vector(2 downto 0);       --  range must bigger than CFG_REGS
+signal I_RD_ADDR:               std_logic_vector(2 downto 0);       --  range must bigger than CFG_REGS, ¿¼ÂÇºÍ I_REG_CNTºÏ²¢
 --signal I_UPDATE_CODE:           std_logic_vector(3 downto 0);
 signal I_RD_EN:                 std_logic;
-
+signal I_RD_EN_1:               std_logic;
 
 begin
 --------------------------------------------------------------------------------
@@ -269,14 +272,18 @@ begin
     I_SREG <= (others => '0');
   elsif (rising_edge(CLOCK)) then
     if (I_ENABLE = '0') then
-      if (I_START_P = '1') then
-        I_SREG <= INPUT;
-      else
+      --if (I_START_P = '1') then
+        --I_SREG <= INPUT;
+        --I_SREG <= C_UPDATE_CODE & I_RD_ADDR & INPUT & '0';
+      --else
         I_SREG <= I_SREG;
-      end if;
-    else
-      if ((I_REG_CNT_ADD_F = '1') and (I_PULSE_P = '1')) then
-        I_SREG <= INPUT;
+      --end if;
+    else -- (I_ENABLE = '1') 
+      --if ((I_REG_CNT_ADD_F = '1') and (I_PULSE_P = '1')) then
+      if (I_RD_EN_1 = '1') then
+        --I_SREG <= INPUT;
+        I_SREG <= C_UPDATE_CODE & I_RD_ADDR & INPUT & '0';
+
       -- if ((I_PULSE = '1') and (I_TX_CLK = '1')) then
       elsif ((I_SHIFT_EN = '1') and (I_PULSE_N = '1')) then
         I_SREG(C_NO_CFG_BITS-1 downto 1) <= I_SREG(C_NO_CFG_BITS-2 downto 0);
@@ -293,8 +300,10 @@ READ_WORDS: process(RESET,CLOCK)
 begin
   if (RESET = '1') then
     I_RD_EN <= '0';
+    I_RD_EN_1 <= '0';
     I_RD_ADDR <= (others => '0');
   elsif (rising_edge(CLOCK)) then
+    I_RD_EN_1 <= I_RD_EN;
     if (I_ENABLE = '0') then
         if (I_START_P = '1') then
             I_RD_EN <= '1';
@@ -446,6 +455,9 @@ TX_DAT <= I_SREG(C_NO_CFG_BITS-1);
 -- TX_CLK <= I_TX_CLK or I_SET_TX_CLK;
 TX_CLK <= (I_PULSE or I_SET_TX_CLK) and not I_REG_CNT_ADD_F;
 TX_OE  <= I_CFG_PERIOD;
+RD_ADDR <= I_RD_ADDR;
+RD_EN <= I_RD_EN;
+
 
 end RTL;
 

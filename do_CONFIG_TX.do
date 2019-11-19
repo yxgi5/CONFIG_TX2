@@ -8,6 +8,7 @@ vmap work rtl_work
 
 vcom -2008 -work work {./CONFIG_TX.vhd}
 vcom -2008 -work work {./CLK_DIV.vhd}
+vlog -vlog01compat -work work {./CONV_REGS.v}
 vlog -vlog01compat -work work {./CONFIG_TX_tb.v}
 
 #simulate
@@ -16,6 +17,8 @@ vsim -novopt CONFIG_TX_tb
 #probe signals
 add wave -radix unsigned *
 add wave -radix unsigned /CONFIG_TX_tb/UUT9/*
+add wave -radix unsigned /CONFIG_TX_tb/UUT10/*
+add wave -radix unsigned /CONFIG_TX_tb/UUT10/RAM
 
 view structure
 view signals
