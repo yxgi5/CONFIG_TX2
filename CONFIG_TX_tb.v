@@ -1,7 +1,7 @@
 // clk_div_5_5_tb.v
 // Testbench
 
-`timescale 1ps/ 1ps
+`timescale 1ns/ 1ps
 //`define CheckByteNum 6000
 //`ifndef xx
 //`define xx yy // or parameter xx = yy;
@@ -26,6 +26,9 @@ wire                            TX_OE_tb;
 wire    [15:0]                  pdata;
 wire    [2:0]                   paddr;
 wire                            rd_en;
+
+reg     i;
+
 
 CONFIG_TX
 #(
@@ -67,23 +70,32 @@ assign      TX_OE_N_tb  =       ~TX_OE_tb;
 
 initial
 begin
+    i = 0;
     UCLOCK_tb = 1;
     RESET_tb = 1;
     START_tb = 0;
-    #40000 
+    #40
     RESET_tb = 0;
+
+    # 10000000 i=1;
+    
+    while(i)
+    begin
+        #1000 START_tb = 1;
+        #50000 START_tb = 0;
+    end
 end
 
 always
 begin
-    #10416 UCLOCK_tb = ~UCLOCK_tb; // 48MHz sample clock
+    #10 UCLOCK_tb = ~UCLOCK_tb; // 50MHz sample clock
 end
 
-always
-begin
-    #1000000 START_tb = 1;
-    #50000000 START_tb = 0;
-end
+//always
+//begin
+//    #1000000 START_tb = 1;
+//    #50000000 START_tb = 0;
+//end
 
 endmodule
 

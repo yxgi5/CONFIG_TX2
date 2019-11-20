@@ -35,6 +35,7 @@ entity CONFIG_TX is
     BIT_PERIOD_NS:              integer:=10000;                                 -- data rate
     C_NO_CFG_BITS:              integer:=24;                                    -- serial bits
     --C_REG_CFG_BITS:             integer:=3;                                   -- don't change, 3 bit config reg address
+    IDLE_PERIOD_MAX_NS:         integer:=500000000;                           -- wait if no input, then send gain
     CFG_REGS:                   integer:=2);                                    -- don't change, naneye-m has 2 regs, each reg has 16 bit
 
   port (
@@ -59,6 +60,7 @@ subtype T_BIT_CNT is            integer range 0 to C_NO_CFG_BITS;
 --constant C_CLK_DIV:             integer:=((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS));
 constant C_CLK_DIV:             integer:=((((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS))+1)/2)*2; -- 确保是偶数分频
 constant C_UPDATE_CODE:         std_logic_vector(3 downto 0):="1001";
+constant C_WAIT_PERIOD_MAX:     integer:= IDLE_PERIOD_MAX_NS*1000/CLOCK_PERIOD_PS;
 
 component CLK_DIV is
    generic (
@@ -70,6 +72,9 @@ component CLK_DIV is
       PULSE:                    out std_logic);
 end component CLK_DIV;
 
+signal I_IDLE_WATI_TIMEOUT:     std_logic;
+signal I_IDLE_WATI_TIMEOUT_1:   std_logic;
+signal I_IDLE_WATI_TIMEOUT_CNT: std_logic_vector(32 downto 0);
 signal I_START_1:               std_logic;
 signal I_START_2:               std_logic;
 signal I_START_3:               std_logic;
@@ -106,6 +111,34 @@ signal I_RD_EN:                 std_logic;
 signal I_RD_EN_1:               std_logic;
 
 begin
+
+--------------------------------------------------------------------------------
+-- handle timeout
+--------------------------------------------------------------------------------
+TIME_OUT: process(RESET,CLOCK)
+begin
+    if (RESET = '1') then
+        I_IDLE_WATI_TIMEOUT <= '0';
+        I_IDLE_WATI_TIMEOUT_1 <= '0';
+        I_IDLE_WATI_TIMEOUT_CNT <= (others => '0');
+    elsif (rising_edge(CLOCK)) then
+        I_IDLE_WATI_TIMEOUT_1 <= I_IDLE_WATI_TIMEOUT;
+        if(I_START_P = '1') then
+            I_IDLE_WATI_TIMEOUT_CNT <= (others => '0');
+        elsif (I_IDLE_WATI_TIMEOUT_CNT = C_WAIT_PERIOD_MAX) then
+            I_IDLE_WATI_TIMEOUT_CNT <= (others => '0');
+            if (I_CFG_PERIOD = '0') then
+                I_IDLE_WATI_TIMEOUT <= '1';
+            else
+                I_IDLE_WATI_TIMEOUT <= '0';
+            end if;
+        else
+            I_IDLE_WATI_TIMEOUT_CNT <= I_IDLE_WATI_TIMEOUT_CNT + 1;
+            I_IDLE_WATI_TIMEOUT <= '0';
+        end if;
+    end if;
+end process TIME_OUT;
+
 --------------------------------------------------------------------------------
 -- synchronization of START signal
 --------------------------------------------------------------------------------
@@ -122,7 +155,7 @@ begin
   end if;
 end process START_SYNC;
 
-I_START_P <= I_START_2 and not I_START_3;
+I_START_P <= (I_START_2 and not I_START_3) or (I_IDLE_WATI_TIMEOUT and not I_IDLE_WATI_TIMEOUT_1);
 
 
 --------------------------------------------------------------------------------
@@ -404,7 +437,7 @@ begin
   if (RESET = '1') then
     I_CFG_PERIOD_END <= (others => '1');
   elsif (rising_edge(CLOCK)) then
-    I_CFG_PERIOD_END <= LINE_PERIOD-x"120" & '0';
+    I_CFG_PERIOD_END <= LINE_PERIOD-x"120" & '0'; -- config结束前多少线就不允许再发了
   end if;
 end process CFG_END_EVAL;
 
@@ -421,7 +454,7 @@ begin
     I_CFG_PERIOD_1 <= I_CFG_PERIOD;
     if (I_START_P = '1') then
       I_CFG_PERIOD <= '1';
-    elsif (I_CFG_PERIOD_CNT = I_CFG_PERIOD_END) then
+    elsif (I_CFG_PERIOD_CNT >= I_CFG_PERIOD_END) then
       I_CFG_PERIOD <= '0';
     else
       I_CFG_PERIOD <= I_CFG_PERIOD;
