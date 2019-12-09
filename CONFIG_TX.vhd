@@ -57,8 +57,8 @@ end entity CONFIG_TX;
 architecture RTL of CONFIG_TX is
 
 subtype T_BIT_CNT is            integer range 0 to C_NO_CFG_BITS;
---constant C_CLK_DIV:             integer:=((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS));
-constant C_CLK_DIV:             integer:=((((BIT_PERIOD_NS*1000) / (2*CLOCK_PERIOD_PS))+1)/2)*2; -- 确保是偶数分频
+--constant C_CLK_DIV:             integer:=((BIT_PERIOD_NS*1000) / CLOCK_PERIOD_PS);
+constant C_CLK_DIV:             integer:=((((BIT_PERIOD_NS*1000) / CLOCK_PERIOD_PS)+1)/2)*2; -- 确保是偶数分频
 constant C_UPDATE_CODE:         std_logic_vector(3 downto 0):="1001";
 -- constant C_WAIT_PERIOD_MAX:     integer:= IDLE_PERIOD_MAX_NS*1000/CLOCK_PERIOD_PS;
 constant C_WAIT_PERIOD_MAX:     integer:= (IDLE_PERIOD_MAX_NS/CLOCK_PERIOD_PS)*1000;
