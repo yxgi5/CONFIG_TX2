@@ -213,7 +213,7 @@ begin
             elsif (I_PULSE_P = '1') then
                 I_START_P_SCK_CNT <= I_START_P_SCK_CNT + 1;
             end if;
-        elsif (I_START_P) then
+        elsif (I_START_P = '1') then
             I_START_P_SCK <= '1';
             I_ENABLE <= '1';
         elsif ((I_BIT_CNT = C_NO_CFG_BITS-1) and (I_PULSE_N = '1')) then
