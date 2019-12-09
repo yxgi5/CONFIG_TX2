@@ -36,7 +36,7 @@ entity CONFIG_TX is
     C_NO_CFG_BITS:              integer:=24;                                    -- serial bits
     --C_REG_CFG_BITS:             integer:=3;                                   -- don't change, 3 bit config reg address
     IDLE_PERIOD_MAX_NS:         integer:=500000000;                           -- wait if no input, then send gain
-    CFG_REGS:                   integer:=2);                                    -- don't change, naneye-m has 2 regs, each reg has 16 bit
+    CFG_REGS:                   integer:=2);                                    -- don't change, naneye-m has 2 regs, each reg has 16 bit, avilable choice 1, 2, 3
 
   port (
     RESET:                      in  std_logic;                                  -- async. reset
@@ -317,8 +317,11 @@ begin
       --if ((I_REG_CNT_ADD_F = '1') and (I_PULSE_P = '1')) then
       if (I_RD_EN_1 = '1') then
         --I_SREG <= INPUT;
-        I_SREG <= C_UPDATE_CODE & I_RD_ADDR & INPUT & '0';
-
+        if (I_REG_CNT > 1) then -- here
+            I_SREG <= "000000000000000101010101"; -- here
+        else -- here
+            I_SREG <= C_UPDATE_CODE & I_RD_ADDR & INPUT & '0'; -- here
+        end if; -- here
       -- if ((I_PULSE = '1') and (I_TX_CLK = '1')) then
       elsif ((I_SHIFT_EN = '1') and (I_PULSE_N = '1')) then
         I_SREG(C_NO_CFG_BITS-1 downto 1) <= I_SREG(C_NO_CFG_BITS-2 downto 0);

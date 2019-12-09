@@ -34,7 +34,8 @@ CONFIG_TX
 #(
     .CLOCK_PERIOD_PS            (20833),    // 48MHz
     .BIT_PERIOD_NS              (400),      // 2.5MHz
-    .C_NO_CFG_BITS              (24)
+    .C_NO_CFG_BITS              (24),
+    .CFG_REGS                   (2)
 )UUT9
 (
     .RESET                      (RESET_tb),
